@@ -1,0 +1,50 @@
+# File: docker-compose.yml
+version: "3.8"
+
+services:
+  db:
+    image: postgres:15 # Use a specific version for consistency
+    container_name: novel-platform-db
+    restart: unless-stopped
+    environment:
+      # These values will be read from the .env file
+      POSTGRES_USER: ${DB_USER:-user} # Default to 'user' if not set in .env
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-password} # Default to 'password' if not set
+      POSTGRES_DB: ${DB_NAME:-noveldb} # Default to 'noveldb' if not set
+    ports:
+      # Map host port 5433 to container port 5432
+      # Use 5433 to avoid potential conflicts with local Postgres installs
+      - "5433:5432"
+    volumes:
+      # Persist database data outside the container
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test:
+        ["CMD-SHELL", "pg_isready -U ${DB_USER:-user} -d ${DB_NAME:-noveldb}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # --- You can add your Go application service here later ---
+  # api:
+  #   build: . # Assuming Dockerfile in root
+  #   container_name: novel-platform-api
+  #   restart: unless-stopped
+  #   ports:
+  #     - "8080:8080" # Map host 8080 to container 8080
+  #   depends_on:
+  #     db:
+  #       condition: service_healthy # Wait for DB to be healthy
+  #   environment:
+  #     # Pass necessary env vars to your Go app container
+  #     DB_HOST: db # Service name acts as hostname within docker network
+  #     DB_PORT: 5432 # Container port for DB
+  #     DB_USER: ${DB_USER:-user}
+  #     DB_PASSWORD: ${DB_PASSWORD:-password}
+  #     DB_NAME: ${DB_NAME:-noveldb}
+  #     DB_SSL_MODE: disable # Often disable SSL inside docker network
+  #     FIREBASE_SERVICE_ACCOUNT_KEY_PATH: /path/inside/container/to/key.json # Adjust path
+  #     GIN_MODE: release # Set Gin mode for container
+
+volumes:
+  postgres-data: # Define the named volume for data persistence
