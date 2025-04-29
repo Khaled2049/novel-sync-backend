@@ -1,0 +1,34 @@
+# Go build outputs
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+
+# Output folder (if compiling locally)
+/bin/
+/dist/
+
+# Go workspace history
+.history/
+
+# Env files
+.env
+*.env
+
+# IDE and OS files
+.idea/
+.vscode/
+*.iml
+*.DS_Store
+Thumbs.db
+
+# Dependency directories (though 'go mod vendor' is less common now)
+/vendor/
+
+# Log files
+*.log
+
+# Temporary files
+*.tmp
