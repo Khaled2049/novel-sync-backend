@@ -32,7 +32,7 @@ var firebaseAuthClient *auth.Client
 var dbPool *pgxpool.Pool // Store the pool globally or pass via DI
 
 func initializeFirebase(cfg *config.FirebaseConfig) error {
-	// ... (Firebase init logic as before) ...
+	
     serviceAccountKeyPath := cfg.ServiceAccountKeyPath
 	if serviceAccountKeyPath == "" {
 		serviceAccountKeyPath = os.Getenv("FIREBASE_SERVICE_ACCOUNT_KEY_PATH")
@@ -56,10 +56,10 @@ func initializeFirebase(cfg *config.FirebaseConfig) error {
 }
 
 func main() {
-	// Load .env file variables into the environment for this process
+	
 	err := godotenv.Load() // Loads .env from current directory or parent dirs
 	if err != nil {
-		// It's often okay to just log a warning if .env is optional (e.g., relying on system env vars)
+		
 		log.Printf("Warning: could not load .env file: %v", err)
 	}
 
@@ -97,7 +97,7 @@ func main() {
 
 	
 	userRepo := postgres.NewUserRepository(dbPool)
-	// novelRepo := postgres.NewNovelRepository(dbPool) // Create this later
+	novelRepo := postgres.NewNovelRepository(dbPool)
 
 	
 	var firebaseVerifier fbAuth.FirebaseVerifier
@@ -111,15 +111,15 @@ func main() {
 	
 	
 	authService := service.NewAuthService(firebaseVerifier, userRepo, jwtGenerator)
-	// novelService := service.NewNovelService(novelRepo)
+	novelService := service.NewNovelService(novelRepo)
 
 	
 	authHandler := handlers.NewAuthHandler(authService)
 	helloHandler := handlers.NewHelloHandler()
-	// novelHandler := handlers.NewNovelHandler(novelService)
+	novelHandler := handlers.NewNovelHandler(novelService) 
 
 	
-	srv := http.NewServer(cfg, authHandler, helloHandler /*, novelHandler */)
+	srv := http.NewServer(cfg, authHandler, helloHandler, novelHandler)
 
 	
 	serverErrors := make(chan error, 1)

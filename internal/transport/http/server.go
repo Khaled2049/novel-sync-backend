@@ -26,7 +26,7 @@ type Server struct {
 	// Add dependencies needed to create handlers (services, etc.)
 	authHandler  *handlers.AuthHandler
 	helloHandler *handlers.HelloHandler
-	// novelHandler *handlers.NovelHandler
+	novelHandler *handlers.NovelHandler
 }
 
 // NewServer creates and configures a new HTTP server instance.
@@ -35,7 +35,7 @@ func NewServer(
 	// Pass dependencies needed by handlers
 	authHandler *handlers.AuthHandler,
 	helloHandler *handlers.HelloHandler,
-	// novelHandler *handlers.NovelHandler,
+	novelHandler *handlers.NovelHandler,
 
 ) *Server {
 	// Set Gin mode (e.g., debug, release, test)
@@ -58,12 +58,12 @@ func NewServer(
 		// Store handlers
 		authHandler:  authHandler,
 		helloHandler: helloHandler,
-		// novelHandler: novelHandler,
+		novelHandler: novelHandler,
 	}
 
 	// --- Register Routes ---
 	// Pass the engine and handlers to the central registration function
-	RegisterAllRoutes(engine, authHandler, helloHandler /*, novelHandler */)
+	RegisterAllRoutes(engine, authHandler, helloHandler, novelHandler)
 
 	return server
 }

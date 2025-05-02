@@ -12,13 +12,15 @@ import (
 
 func RegisterAllRoutes(
 	router *gin.Engine,
-	authHandler *handlers.AuthHandler, // Assuming authHandler is created in server.go or main.go
+	authHandler *handlers.AuthHandler, 
 	helloHandler *handlers.HelloHandler,
+	novelHandler *handlers.NovelHandler, 
 ) {
 	// Initialize handlers
-	helloHandler.RegisterRoutes(router) // Or pass 'api' group if using grouping
-	authHandler.RegisterRoutes(router)  // Or pass 'api' group
-	// novelHandler.RegisterRoutes(api)
+	helloHandler.RegisterRoutes(router) 
+	authHandler.RegisterRoutes(router)  
+	novelHandler.RegisterRoutes(router)
+
 
 	// Add health check endpoint (common practice)
 	router.GET("/health", func(c *gin.Context) {
