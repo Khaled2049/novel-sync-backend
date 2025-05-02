@@ -68,7 +68,7 @@ func main() {
 	initCtx, initCancel := context.WithTimeout(context.Background(), 15*time.Second) // 15 sec timeout for init
 	defer initCancel()
 
-	// --- 1. Load Configuration ---
+	
 	cfg, err := config.LoadConfig()
 	if err != nil {
 		log.Fatalf("Failed to load configuration: %v", err)
@@ -79,27 +79,27 @@ func main() {
         log.Fatalf("Failed to initialize JWT Generator: %v", err)
     }
 
-	// --- 2. Initialize Firebase ---
+	
 	if err := initializeFirebase(&cfg.Firebase); err != nil {
 		log.Printf("Firebase initialization failed: %v. Continuing...", err)
 	}
 
-	// --- 3. Initialize Database Connection Pool ---
+	
 	dbPool, err = postgres.NewConnectionPool(&cfg.Database, initCtx) // Use initCtx
 	if err != nil {
 		log.Fatalf("Failed to connect to database: %v", err)
 	}
-	// Defer closing the pool until the main function exits
+	
 	defer func() {
 		log.Println("Closing database connection pool...")
 		dbPool.Close()
 	}()
 
-	// --- 4. Setup Repositories ---
+	
 	userRepo := postgres.NewUserRepository(dbPool)
 	// novelRepo := postgres.NewNovelRepository(dbPool) // Create this later
 
-	// --- 5. Create Firebase Verifier ---
+	
 	var firebaseVerifier fbAuth.FirebaseVerifier
 	if firebaseAuthClient != nil {
 		firebaseVerifier = fbAuth.NewFirebaseVerifier(firebaseAuthClient)
@@ -108,20 +108,20 @@ func main() {
 		// firebaseVerifier = fbAuth.NewNoopVerifier() // Placeholder if needed
 	}
 
-	// --- 6. Create Services ---
-	// Inject the concrete userRepo implementation
+	
+	
 	authService := service.NewAuthService(firebaseVerifier, userRepo, jwtGenerator)
 	// novelService := service.NewNovelService(novelRepo)
 
-	// --- 7. Create HTTP Handlers ---
+	
 	authHandler := handlers.NewAuthHandler(authService)
 	helloHandler := handlers.NewHelloHandler()
 	// novelHandler := handlers.NewNovelHandler(novelService)
 
-	// --- 8. Create and Prepare HTTP Server ---
+	
 	srv := http.NewServer(cfg, authHandler, helloHandler /*, novelHandler */)
 
-	// --- 9. Start Server and Handle Graceful Shutdown ---
+	
 	serverErrors := make(chan error, 1)
 	go func() {
 		log.Println("Starting HTTP server...")
@@ -138,9 +138,6 @@ func main() {
 	case sig := <-quit:
 		log.Printf("Received signal %s. Application shutting down...", sig)
 	}
-
-	// Server shutdown is handled within srv.Run(),
-	// Database pool closure is handled by the defer statement.
 
 	log.Println("Application shut down gracefully.")
 }
