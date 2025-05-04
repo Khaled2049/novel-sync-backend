@@ -14,6 +14,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/khaled2049/server/internal/config"
 	"github.com/khaled2049/server/internal/transport/http/handlers"
+	"github.com/khaled2049/server/internal/transport/http/middleware"
 	// Import services if needed to create handlers here
 	// "your_module_path_placeholder/internal/service"
 )
@@ -42,14 +43,7 @@ func NewServer(
 	// gin.SetMode(gin.ReleaseMode) // Uncomment for production
 
 	engine := gin.Default() // Includes Logger and Recovery middleware
-
-	// --- Setup Middleware ---
-	// Add CORS middleware (implement in middleware package)
-	// engine.Use(mw.CORSMiddleware()) // Example: Assuming you have this
-
-	// Add custom middleware if needed
-	// engine.Use(mw.RequestIDMiddleware())
-	// engine.Use(mw.TimeoutMiddleware(10 * time.Second))
+	engine.Use(middleware.CORSMiddleware())
 
 	// Create server instance
 	server := &Server{

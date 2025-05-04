@@ -37,11 +37,11 @@ func NewAuthService(
 
 // LoginWithFirebaseToken verifies the Firebase token, finds or creates a user,
 // and generates a backend session token.
-func (s *AuthService) LoginWithFirebaseToken(ctx context.Context, idToken string) ( /* backendToken string, user *domain.User, */ map[string]interface{}, error) {
-	// 1. Verify Firebase Token
+func (s *AuthService) LoginWithFirebaseToken(ctx context.Context, idToken string) ( map[string]interface{}, error) {
+
 	firebaseToken, err := s.firebaseVerifier.VerifyFirebaseIDToken(ctx, idToken)
 	if err != nil {
-		return nil, fmt.Errorf("invalid Firebase token: %w", err)
+		return nil, fmt.Errorf("invalid Firebase token here: %w", err)
 	}
 
 	// 2. Find or Create User in your Database
@@ -58,10 +58,6 @@ func (s *AuthService) LoginWithFirebaseToken(ctx context.Context, idToken string
 				// Name:     firebaseToken.Claims["name"].(string), // Be careful with type assertions
 				// Populate other fields as needed
 			}
-			// Potentially get display name if available:
-            if name, ok := firebaseToken.Claims["name"].(string); ok {
-                newUser.Name = name
-            }
 
 			createdUser, createErr := s.userRepo.Create(ctx, newUser)
 			if createErr != nil {
@@ -151,18 +147,3 @@ func (s *AuthService) Login(ctx context.Context, email, plainPassword string) (m
 
 	return responseData, nil
 }
-
-// --- Dummy User Repository Interface/Error (for compilation) ---
-// Replace with your actual repository definition in internal/repository/user_repo.go
-// And its implementation in internal/repository/postgres/user_repo.go
-
-// Add FindByFirebaseUID to your existing UserRepository interface
-// File: internal/repository/user_repo.go
-// package repository
-// type UserRepository interface {
-//     // ... other methods like FindByID, Create, Update ...
-//     FindByFirebaseUID(ctx context.Context, firebaseUID string) (*domain.User, error)
-// }
-// var ErrUserNotFound = fmt.Errorf("user not found")
-
-// Remember to implement FindByFirebaseUID in internal/repository/postgres/user_repo.go

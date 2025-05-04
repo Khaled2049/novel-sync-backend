@@ -28,13 +28,13 @@ func NewUserRepository(pool *pgxpool.Pool) repository.UserRepository {
 // FindByID retrieves a user by their internal ID.
 func (r *postgresUserRepository) FindByID(ctx context.Context, id string) (*domain.User, error) {
 	query := `
-		SELECT id, firebase_uid, email, name, created_at, updated_at
+		SELECT id, firebase_uid, email, FullName, created_at, updated_at
 		FROM users
 		WHERE id = $1;`
 
 	user := &domain.User{}
 	err := r.pool.QueryRow(ctx, query, id).Scan(
-		&user.ID, &user.FirebaseUID, &user.Email, &user.Name, &user.CreatedAt, &user.UpdatedAt,
+		&user.ID, &user.FirebaseUID, &user.Email, &user.FullName, &user.CreatedAt, &user.UpdatedAt,
 	)
 
 	if err != nil {
@@ -51,13 +51,13 @@ func (r *postgresUserRepository) FindByID(ctx context.Context, id string) (*doma
 // FindByFirebaseUID retrieves a user by their Firebase UID.
 func (r *postgresUserRepository) FindByFirebaseUID(ctx context.Context, firebaseUID string) (*domain.User, error) {
 	query := `
-		SELECT id, firebase_uid, email, name, created_at, updated_at
+		SELECT id, firebase_uid, email, full_name, created_at, updated_at
 		FROM users
 		WHERE firebase_uid = $1;`
 
 	user := &domain.User{}
 	err := r.pool.QueryRow(ctx, query, firebaseUID).Scan(
-		&user.ID, &user.FirebaseUID, &user.Email, &user.Name, &user.CreatedAt, &user.UpdatedAt,
+		&user.ID, &user.FirebaseUID, &user.Email, &user.FullName, &user.CreatedAt, &user.UpdatedAt,
 	)
 
 	if err != nil {
@@ -79,12 +79,12 @@ func (r *postgresUserRepository) Create(ctx context.Context, user *domain.User) 
 	}
 
 	query := `
-		INSERT INTO users (id, firebase_uid, email, name)
+		INSERT INTO users (id, firebase_uid, email, full_name)
 		VALUES ($1, $2, $3, $4)
 		RETURNING created_at, updated_at;` // Get generated timestamps
 
 	err := r.pool.QueryRow(ctx, query,
-		user.ID, user.FirebaseUID, user.Email, user.Name,
+		user.ID, user.FirebaseUID, user.Email, user.FullName,
 	).Scan(&user.CreatedAt, &user.UpdatedAt)
 
 	if err != nil {
@@ -112,7 +112,7 @@ func (r *postgresUserRepository) FindByEmail(ctx context.Context, email string) 
 		&user.ID,
 		&user.FirebaseUID, // Make sure your DB has this or handle nullable appropriately
 		&user.Email,
-		&user.Name,
+		&user.FullName,
 		&user.PasswordHash, // Scan the password hash
 		&user.CreatedAt,
 		&user.UpdatedAt,
