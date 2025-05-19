@@ -10,6 +10,7 @@ import (
 	"syscall"
 	"time"
 
+	firebase "firebase.google.com/go/v4"
 	"firebase.google.com/go/v4/auth"
 	"github.com/jackc/pgx/v5/pgxpool" // Import pgxpool
 	"github.com/joho/godotenv"
@@ -24,7 +25,7 @@ import (
 	"github.com/khaled2049/server/internal/util/jwt"
 
 	// --- Add firebase imports ---
-	firebase "firebase.google.com/go/v4"
+
 	"google.golang.org/api/option"
 )
 
@@ -98,6 +99,7 @@ func main() {
 	
 	userRepo := postgres.NewUserRepository(dbPool)
 	novelRepo := postgres.NewNovelRepository(dbPool)
+	chapterRepo := postgres.NewChapterRepository(dbPool)
 
 	
 	var firebaseVerifier fbAuth.FirebaseVerifier
@@ -111,7 +113,7 @@ func main() {
 	
 	
 	authService := service.NewAuthService(firebaseVerifier, userRepo, jwtGenerator)
-	novelService := service.NewNovelService(novelRepo)
+	novelService := service.NewNovelService(novelRepo, chapterRepo)
 
 	
 	authHandler := handlers.NewAuthHandler(authService)
