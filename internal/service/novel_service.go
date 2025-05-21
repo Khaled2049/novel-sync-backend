@@ -4,27 +4,29 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/google/uuid"
 	"github.com/khaled2049/server/internal/domain"
 	"github.com/khaled2049/server/internal/repository"
 )
 
-
-
 type NovelService struct {
-	novelRepo repository.NovelRepository
-	chapterRepo repository.ChapterRepository
+	novelRepo     repository.NovelRepository
+	chapterRepo   repository.ChapterRepository
+	characterRepo repository.CharacterRepository
 }
 
 func NewNovelService(
-		novelRepo repository.NovelRepository,
-	 	chapterRepo repository.ChapterRepository) *NovelService {
+	novelRepo repository.NovelRepository,
+	chapterRepo repository.ChapterRepository,
+	characterRepo repository.CharacterRepository) *NovelService {
 	return &NovelService{
-		novelRepo: novelRepo,
-		chapterRepo: chapterRepo,
+		novelRepo:     novelRepo,
+		chapterRepo:   chapterRepo,
+		characterRepo: characterRepo,
 	}
 }
 
-func (s *NovelService) GetNovelByID(ctx context.Context, id string) (*domain.Novel, error) {
+func (s *NovelService) GetNovelByID(ctx context.Context, id uuid.UUID) (*domain.Novel, error) {
 	novel, err := s.novelRepo.GetByID(ctx, id)
 	if err != nil {
 		return nil, err
@@ -65,12 +67,12 @@ func (s *NovelService) CreateNovelWithFirstChapter(
 	fmt.Printf("DEBUG: createdNovel.ID = %s\n", createdNovel.ID)
 
 	chapter := &domain.Chapter{
-		NovelID:         createdNovel.ID,
-		Title:           chapterTitle,
-		Content:         initialContent,
-		Status:          domain.ChapterStatusDraft,
-		OrderIndex:      0, 
-		WordCount:       0, 
+		NovelID:            createdNovel.ID,
+		Title:              chapterTitle,
+		Content:            initialContent,
+		Status:             domain.ChapterStatusDraft,
+		OrderIndex:         0,
+		WordCount:          0,
 		LastEditedByUserID: createdNovel.OwnerUserID,
 	}
 
@@ -84,8 +86,8 @@ func (s *NovelService) CreateNovelWithFirstChapter(
 
 // AddChapterToNovel adds a new chapter to an existing novel
 func (s *NovelService) AddChapterToNovel(
-	ctx context.Context, 
-	novelID string,
+	ctx context.Context,
+	novelID uuid.UUID,
 	chapter *domain.Chapter,
 ) (*domain.Chapter, error) {
 	// Verify the novel exists
@@ -108,54 +110,30 @@ func (s *NovelService) AddChapterToNovel(
 	}
 
 	// Set the new chapter's order index
-	chapter.NovelID = novelID
+	chapter.NovelID = novelID.String()
 	chapter.OrderIndex = highestIndex + 1
-	chapter.WordCount = len(chapter.Content) 
-	chapter.Status = domain.ChapterStatusDraft 
-	chapter.LastEditedByUserID = chapter.LastEditedByUserID 
+	chapter.WordCount = len(chapter.Content)
+	chapter.Status = domain.ChapterStatusDraft
 
-	fmt.Printf("DEBUG: Adding chapter with OrderIndex = %d\n", chapter.LastEditedByUserID)
+	fmt.Printf("DEBUG: Adding chapter with LastEditedByUserID = %s\n", chapter.LastEditedByUserID)
 
 	return s.chapterRepo.Create(ctx, chapter)
 }
 
-func (s *NovelService) AutosaveChapter(
+// CreateCharacter creates a new character and associates it with a novel
+func (s *NovelService) CreateCharacter(
 	ctx context.Context,
-	chapterID string,
-	content string,
-	userID string,
-) error {
-	return s.chapterRepo.AutosaveContent(ctx, chapterID, content, userID)
-}
+	novelID uuid.UUID,
+	character *domain.Character,
+) (*domain.Character, error) {
+	// Verify the novel exists
+	_, err := s.novelRepo.GetByID(ctx, novelID)
+	if err != nil {
+		return nil, fmt.Errorf("novel not found: %w", err)
+	}
 
-// SaveChapterWithRevision saves chapter content and creates a new revision entry
-func (s *NovelService) SaveChapterWithRevision(
-	ctx context.Context,
-	chapterID string,
-	newContent string,
-	userID string,
-	notes string,
-) error {
-	// First update the chapter content
-	chapter, err := s.chapterRepo.GetByID(ctx, chapterID)
-	if err != nil {
-		return fmt.Errorf("failed to get chapter for revision: %w", err)
-	}
-	
-	// Update the chapter
-	chapter.Content = newContent
-	chapter.LastEditedByUserID = userID
-	
-	err = s.chapterRepo.Update(ctx, chapter)
-	if err != nil {
-		return fmt.Errorf("failed to update chapter: %w", err)
-	}
-	
-	// Then save a revision
-	err = s.chapterRepo.SaveRevision(ctx, chapterID, newContent, userID, notes)
-	if err != nil {
-		return fmt.Errorf("chapter updated but failed to save revision: %w", err)
-	}
-	
-	return nil
+	character.NovelID = novelID
+	character.Source = "user"
+
+	return s.characterRepo.Create(ctx, character)
 }

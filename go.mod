@@ -8,6 +8,7 @@ require (
 	firebase.google.com/go/v4 v4.15.2
 	github.com/gin-contrib/cors v1.7.5
 	github.com/joho/godotenv v1.5.1
+	github.com/streadway/amqp v1.1.0
 )
 
 require (

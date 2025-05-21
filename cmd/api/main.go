@@ -33,8 +33,8 @@ var firebaseAuthClient *auth.Client
 var dbPool *pgxpool.Pool // Store the pool globally or pass via DI
 
 func initializeFirebase(cfg *config.FirebaseConfig) error {
-	
-    serviceAccountKeyPath := cfg.ServiceAccountKeyPath
+
+	serviceAccountKeyPath := cfg.ServiceAccountKeyPath
 	if serviceAccountKeyPath == "" {
 		serviceAccountKeyPath = os.Getenv("FIREBASE_SERVICE_ACCOUNT_KEY_PATH")
 		if serviceAccountKeyPath == "" {
@@ -57,10 +57,10 @@ func initializeFirebase(cfg *config.FirebaseConfig) error {
 }
 
 func main() {
-	
+
 	err := godotenv.Load() // Loads .env from current directory or parent dirs
 	if err != nil {
-		
+
 		log.Printf("Warning: could not load .env file: %v", err)
 	}
 
@@ -69,39 +69,35 @@ func main() {
 	initCtx, initCancel := context.WithTimeout(context.Background(), 15*time.Second) // 15 sec timeout for init
 	defer initCancel()
 
-	
 	cfg, err := config.LoadConfig()
 	if err != nil {
 		log.Fatalf("Failed to load configuration: %v", err)
 	}
 
 	jwtGenerator, err := jwt.NewGenerator(&cfg.JWT)
-    if err != nil {
-        log.Fatalf("Failed to initialize JWT Generator: %v", err)
-    }
+	if err != nil {
+		log.Fatalf("Failed to initialize JWT Generator: %v", err)
+	}
 
-	
 	if err := initializeFirebase(&cfg.Firebase); err != nil {
 		log.Printf("Firebase initialization failed: %v. Continuing...", err)
 	}
 
-	
 	dbPool, err = postgres.NewConnectionPool(&cfg.Database, initCtx) // Use initCtx
 	if err != nil {
 		log.Fatalf("Failed to connect to database: %v", err)
 	}
-	
+
 	defer func() {
 		log.Println("Closing database connection pool...")
 		dbPool.Close()
 	}()
 
-	
 	userRepo := postgres.NewUserRepository(dbPool)
 	novelRepo := postgres.NewNovelRepository(dbPool)
 	chapterRepo := postgres.NewChapterRepository(dbPool)
+	characterRepo := postgres.NewCharacterRepository(dbPool)
 
-	
 	var firebaseVerifier fbAuth.FirebaseVerifier
 	if firebaseAuthClient != nil {
 		firebaseVerifier = fbAuth.NewFirebaseVerifier(firebaseAuthClient)
@@ -110,20 +106,15 @@ func main() {
 		// firebaseVerifier = fbAuth.NewNoopVerifier() // Placeholder if needed
 	}
 
-	
-	
 	authService := service.NewAuthService(firebaseVerifier, userRepo, jwtGenerator)
-	novelService := service.NewNovelService(novelRepo, chapterRepo)
+	novelService := service.NewNovelService(novelRepo, chapterRepo, characterRepo)
 
-	
 	authHandler := handlers.NewAuthHandler(authService)
 	helloHandler := handlers.NewHelloHandler()
-	novelHandler := handlers.NewNovelHandler(novelService) 
+	novelHandler := handlers.NewNovelHandler(novelService)
 
-	
 	srv := http.NewServer(cfg, authHandler, helloHandler, novelHandler)
 
-	
 	serverErrors := make(chan error, 1)
 	go func() {
 		log.Println("Starting HTTP server...")

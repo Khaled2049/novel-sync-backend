@@ -6,6 +6,7 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 	"github.com/khaled2049/server/internal/domain"
 	"github.com/khaled2049/server/internal/service"
 	"github.com/khaled2049/server/internal/transport/http/request"
@@ -28,26 +29,17 @@ func (h *NovelHandler) RegisterRoutes(router *gin.Engine) {
 		novelGroup.GET("", h.GetAllNovelsHandler)
 		novelGroup.GET("/:novelID", h.GetNovelByIDHandler)
 		novelGroup.POST("/with-first-chapter", h.CreateNovelWithFirstChapterHandler)
+		novelGroup.POST("/:novelID/characters", h.CreateCharacterForNovelHandler)
 
 		// Routes for chapters specifically related to a novel
 		novelChaptersGroup := novelGroup.Group("/:novelID/chapters")
 		{
 			novelChaptersGroup.POST("", h.AddChapterToNovelHandler)
-			// Add other novel-specific chapter routes here if needed, e.g., ListChaptersByNovelID
+
 		}
 
-		// novelGroup.PUT("/:id", h.UpdateNovel) // Service method not implemented
-		// novelGroup.DELETE("/:id", h.DeleteNovel) // Service method not implemented
 	}
 
-	// Group for operations on chapters directly if chapter IDs are globally unique
-	// If chapter IDs are only unique within a novel, these routes might need to be /novels/:novelID/chapters/:chapterID/...
-	chapterGroup := router.Group("/chapters")
-	{
-		chapterGroup.PUT("/:chapterID/autosave", h.AutosaveChapterHandler)
-		chapterGroup.POST("/:chapterID/save-revision", h.SaveChapterWithRevisionHandler)
-		// Add other chapter-specific routes here, e.g., GetChapterByID, UpdateChapter
-	}
 }
 
 // GetAllNovelsHandler handles fetching all novels.
@@ -71,18 +63,6 @@ func (h *NovelHandler) CreateNovelHandler(c *gin.Context) {
 		return
 	}
 
-	// TODO: Extract OwnerUserID from authenticated user context
-	// For now, assuming it's set in the request or handled by service default
-	// if novel.OwnerUserID == "" {
-	//     userID, exists := c.Get("userID") // Example: Get userID from auth middleware
-	//     if exists {
-	//         novel.OwnerUserID = userID.(string)
-	//     } else {
-	//         c.JSON(http.StatusUnauthorized, gin.H{"error": "User ID not found"})
-	//         return
-	//     }
-	// }
-
 	createdNovel, err := h.novelService.CreateNovel(ctx, &novel)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create novel", "details": err.Error()})
@@ -97,7 +77,14 @@ func (h *NovelHandler) GetNovelByIDHandler(c *gin.Context) {
 	ctx := c.Request.Context()
 	novelID := c.Param("novelID")
 
-	novel, err := h.novelService.GetNovelByID(ctx, novelID)
+	// convert novelID from string to uuid.UUID
+	parsedNovelID, err := uuid.Parse(novelID)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid novel ID", "details": err.Error()})
+		return
+	}
+
+	novel, err := h.novelService.GetNovelByID(ctx, parsedNovelID)
 	if err != nil {
 		// TODO: Differentiate between not found and other errors
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch novel", "details": err.Error()})
@@ -111,7 +98,6 @@ func (h *NovelHandler) GetNovelByIDHandler(c *gin.Context) {
 	c.JSON(http.StatusOK, novel)
 }
 
-
 // CreateNovelWithFirstChapterHandler handles creating a novel along with its first chapter.
 func (h *NovelHandler) CreateNovelWithFirstChapterHandler(c *gin.Context) {
 	ctx := c.Request.Context()
@@ -121,17 +107,6 @@ func (h *NovelHandler) CreateNovelWithFirstChapterHandler(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid input", "details": err.Error()})
 		return
 	}
-
-	// TODO: Validate OwnerUserID in req.NovelData or set it from authenticated user
-	// if req.NovelData.OwnerUserID == "" {
-	//     userID, exists := c.Get("userID") // Example: Get userID from auth middleware
-	//     if exists {
-	//         req.NovelData.OwnerUserID = userID.(string)
-	//     } else {
-	//         c.JSON(http.StatusUnauthorized, gin.H{"error": "Owner User ID is required"})
-	//         return
-	//     }
-	// }
 
 	novel, chapter, err := h.novelService.CreateNovelWithFirstChapter(
 		ctx,
@@ -151,9 +126,6 @@ func (h *NovelHandler) CreateNovelWithFirstChapterHandler(c *gin.Context) {
 	})
 }
 
-// AddChapterToNovelRequest defines the payload for adding a chapter.
-// The service expects a full domain.Chapter object.
-
 // AddChapterToNovelHandler handles adding a new chapter to an existing novel.
 func (h *NovelHandler) AddChapterToNovelHandler(c *gin.Context) {
 	ctx := c.Request.Context()
@@ -164,7 +136,7 @@ func (h *NovelHandler) AddChapterToNovelHandler(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid input for chapter", "details": err.Error()})
 		return
 	}
-    
+
 	// TODO: Extract LastEditedByUserID from authenticated user context if not in request
 	// userID, exists := c.Get("userID")
 	// if !exists {
@@ -172,21 +144,27 @@ func (h *NovelHandler) AddChapterToNovelHandler(c *gin.Context) {
 	//     return
 	// }
 	// lastEditedByUserID := userID.(string)
-    lastEditedByUserID := reqChapter.LastEditedByUserID // Assuming it's passed in request for now
+	lastEditedByUserID := reqChapter.LastEditedByUserID // Assuming it's passed in request for now
 
 	fmt.Println("DEBUG: lastEditedByUserID = ", lastEditedByUserID)
 
 	chapter := &domain.Chapter{
-		NovelID:         novelID, // Will be overridden by service, but good to have
-		Title:           reqChapter.Title,
-		Content:         reqChapter.Content,
-		Status:          domain.ChapterStatusDraft, // Default status
+		NovelID:            novelID, // Will be overridden by service, but good to have
+		Title:              reqChapter.Title,
+		Content:            reqChapter.Content,
+		Status:             domain.ChapterStatusDraft, // Default status
 		LastEditedByUserID: lastEditedByUserID,
 		// OrderIndex and WordCount will be handled by the service/repository
 	}
 
+	// convert novelID from string to uuid.UUID
+	parsedNovelID, err := uuid.Parse(novelID)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid novel ID", "details": err.Error()})
+		return
+	}
 
-	createdChapter, err := h.novelService.AddChapterToNovel(ctx, novelID, chapter)
+	createdChapter, err := h.novelService.AddChapterToNovel(ctx, parsedNovelID, chapter)
 	if err != nil {
 		// Check if it's a "novel not found" type of error
 		if err.Error() == fmt.Sprintf("novel not found: %s", novelID) { // This check is brittle; better to use custom errors
@@ -200,64 +178,43 @@ func (h *NovelHandler) AddChapterToNovelHandler(c *gin.Context) {
 	c.JSON(http.StatusCreated, createdChapter)
 }
 
-
-// AutosaveChapterHandler handles autosaving chapter content.
-func (h *NovelHandler) AutosaveChapterHandler(c *gin.Context) {
+func (h *NovelHandler) CreateCharacterForNovelHandler(c *gin.Context) {
 	ctx := c.Request.Context()
-	chapterID := c.Param("chapterID")
+	novelID := c.Param("novelID")
 
-	var req request.AutosaveChapterRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid input for autosave", "details": err.Error()})
+	var reqCharacter request.CreateCharacterRequest
+	if err := c.ShouldBindJSON(&reqCharacter); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid input for character", "details": err.Error()})
 		return
 	}
-    
-	// TODO: Extract UserID from authenticated user context
-	// userIDAuth, exists := c.Get("userID")
-	// if !exists || userIDAuth.(string) != req.UserID { // Optional: verify req.UserID matches auth user
-	//     c.JSON(http.StatusUnauthorized, gin.H{"error": "User ID mismatch or not authenticated"})
-	//     return
-	// }
 
-	err := h.novelService.AutosaveChapter(ctx, chapterID, req.Content, req.UserID)
+	// convert novelID from string to uuid.UUID
+	parsedNovelID, err := uuid.Parse(novelID)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to autosave chapter", "details": err.Error()})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid novel ID", "details": err.Error()})
 		return
 	}
 
-	c.Status(http.StatusNoContent)
-}
-
-// SaveChapterWithRevisionRequest defines the payload for saving a chapter with a revision.
-type SaveChapterWithRevisionRequest struct {
-	NewContent string `json:"new_content"`
-	UserID     string `json:"user_id" binding:"required"` // Or get from auth context
-	Notes      string `json:"notes"`
-}
-
-// SaveChapterWithRevisionHandler handles saving chapter content and creating a revision.
-func (h *NovelHandler) SaveChapterWithRevisionHandler(c *gin.Context) {
-	ctx := c.Request.Context()
-	chapterID := c.Param("chapterID")
-
-	var req SaveChapterWithRevisionRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid input for saving revision", "details": err.Error()})
-		return
+	character := &domain.Character{
+		NovelID:             parsedNovelID,
+		Name:                reqCharacter.Name,
+		Description:         reqCharacter.Description,
+		Backstory:           reqCharacter.Backstory,
+		Motivations:         reqCharacter.Motivations,
+		PhysicalDescription: reqCharacter.PhysicalDescription,
+		ImageURL:            reqCharacter.ImageURL,
 	}
 
-	// TODO: Extract UserID from authenticated user context
-	// userIDAuth, exists := c.Get("userID")
-	// if !exists || userIDAuth.(string) != req.UserID { // Optional: verify req.UserID matches auth user
-	//     c.JSON(http.StatusUnauthorized, gin.H{"error": "User ID mismatch or not authenticated"})
-	//     return
-	// }
-
-	err := h.novelService.SaveChapterWithRevision(ctx, chapterID, req.NewContent, req.UserID, req.Notes)
+	createdCharacter, err := h.novelService.CreateCharacter(ctx, parsedNovelID, character)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to save chapter with revision", "details": err.Error()})
+		// Check if it's a "novel not found" type of error
+		if err.Error() == fmt.Sprintf("novel not found: %s", novelID) { // This check is brittle; better to use custom errors
+			c.JSON(http.StatusNotFound, gin.H{"error": "Novel not found", "details": err.Error()})
+		} else {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to add character to novel", "details": err.Error()})
+		}
 		return
 	}
 
-	c.Status(http.StatusOK) // Or http.StatusNoContent if no body is returned by design
+	c.JSON(http.StatusCreated, createdCharacter)
 }

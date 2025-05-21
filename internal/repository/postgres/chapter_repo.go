@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/khaled2049/server/internal/domain"
@@ -24,7 +25,7 @@ func NewChapterRepository(pool *pgxpool.Pool) repository.ChapterRepository {
 
 // Create saves a new chapter to the storage.
 func (r *postgresChapterRepository) Create(ctx context.Context, chapter *domain.Chapter) (*domain.Chapter, error) {
-	
+
 	query := `
 		INSERT INTO chapters (
 			novel_id, title, content, status, order_index, word_count,
@@ -33,7 +34,6 @@ func (r *postgresChapterRepository) Create(ctx context.Context, chapter *domain.
 			$1, $2, $3, $4, $5, $6, $7
 		)
 		RETURNING id, created_at, updated_at;`
-
 
 	// Calculate word count if not provided
 	wordCount := chapter.WordCount
@@ -52,10 +52,10 @@ func (r *postgresChapterRepository) Create(ctx context.Context, chapter *domain.
 	// Generate a new ID if not provided
 	if chapter.ID == "" {
 		fmt.Println("Chapter ID is empty, creating a new chapter")
-	}	
+	}
 
 	err := r.pool.QueryRow(ctx, query,
-		chapter.NovelID, chapter.Title, chapter.Content, 
+		chapter.NovelID, chapter.Title, chapter.Content,
 		status, chapter.OrderIndex, wordCount, chapter.LastEditedByUserID,
 	).Scan(&chapter.ID, &chapter.CreatedAt, &chapter.UpdatedAt)
 
@@ -72,7 +72,7 @@ func (r *postgresChapterRepository) Create(ctx context.Context, chapter *domain.
 }
 
 // GetByID retrieves a chapter by its ID.
-func (r *postgresChapterRepository) GetByID(ctx context.Context, id string) (*domain.Chapter, error) {
+func (r *postgresChapterRepository) GetByID(ctx context.Context, id uuid.UUID) (*domain.Chapter, error) {
 	query := `
 		SELECT id, novel_id, title, content, status, order_index, word_count,
 			last_edited_by_user_id, created_at, updated_at, published_at
@@ -81,7 +81,7 @@ func (r *postgresChapterRepository) GetByID(ctx context.Context, id string) (*do
 
 	chapter := &domain.Chapter{}
 	err := r.pool.QueryRow(ctx, query, id).Scan(
-		&chapter.ID, &chapter.NovelID, &chapter.Title, &chapter.Content, 
+		&chapter.ID, &chapter.NovelID, &chapter.Title, &chapter.Content,
 		&chapter.Status, &chapter.OrderIndex, &chapter.WordCount,
 		&chapter.LastEditedByUserID, &chapter.CreatedAt, &chapter.UpdatedAt, &chapter.PublishedAt,
 	)
@@ -118,7 +118,7 @@ func (r *postgresChapterRepository) Update(ctx context.Context, chapter *domain.
 	}
 
 	err := r.pool.QueryRow(ctx, query,
-		chapter.ID, chapter.Title, chapter.Content, chapter.Status, 
+		chapter.ID, chapter.Title, chapter.Content, chapter.Status,
 		chapter.OrderIndex, wordCount, chapter.LastEditedByUserID,
 	).Scan(&chapter.UpdatedAt)
 
@@ -137,7 +137,7 @@ func (r *postgresChapterRepository) Update(ctx context.Context, chapter *domain.
 }
 
 // Delete removes a chapter from the storage by its ID.
-func (r *postgresChapterRepository) Delete(ctx context.Context, id string) error {
+func (r *postgresChapterRepository) Delete(ctx context.Context, id uuid.UUID) error {
 	query := `
 		DELETE FROM chapters
 		WHERE id = $1;`
@@ -158,7 +158,7 @@ func (r *postgresChapterRepository) Delete(ctx context.Context, id string) error
 }
 
 // ListByNovelID retrieves all chapters belonging to a specific novel.
-func (r *postgresChapterRepository) ListByNovelID(ctx context.Context, novelID string) ([]*domain.Chapter, error) {
+func (r *postgresChapterRepository) ListByNovelID(ctx context.Context, novelID uuid.UUID) ([]*domain.Chapter, error) {
 	query := `
 		SELECT id, novel_id, title, content, status, order_index, word_count,
 			last_edited_by_user_id, created_at, updated_at, published_at
@@ -177,7 +177,7 @@ func (r *postgresChapterRepository) ListByNovelID(ctx context.Context, novelID s
 	for rows.Next() {
 		chapter := &domain.Chapter{}
 		err := rows.Scan(
-			&chapter.ID, &chapter.NovelID, &chapter.Title, &chapter.Content, 
+			&chapter.ID, &chapter.NovelID, &chapter.Title, &chapter.Content,
 			&chapter.Status, &chapter.OrderIndex, &chapter.WordCount,
 			&chapter.LastEditedByUserID, &chapter.CreatedAt, &chapter.UpdatedAt, &chapter.PublishedAt,
 		)
@@ -196,66 +196,6 @@ func (r *postgresChapterRepository) ListByNovelID(ctx context.Context, novelID s
 	return chapters, nil
 }
 
-// SaveRevision saves a new revision of a chapter's content.
-func (r *postgresChapterRepository) SaveRevision(ctx context.Context, chapterID string, content string, userID string, notes string) error {
-	// Calculate word count
-	wordCount := countWords(content)
-
-	query := `
-		INSERT INTO chapter_revisions (
-			chapter_id, content, source, edited_by_user_id, revision_notes, word_count
-		) VALUES (
-			$1, $2, 'user', $3, $4, $5
-		);`
-
-	_, err := r.pool.Exec(ctx, query, chapterID, content, userID, notes, wordCount)
-	if err != nil {
-		log.Printf("Error saving chapter revision for chapter ID %s: %v", chapterID, err)
-		return fmt.Errorf("failed to save chapter revision: %w", err)
-	}
-
-	// Update the main chapter content as well
-	updateQuery := `
-		UPDATE chapters
-		SET content = $2,
-			word_count = $3,
-			last_edited_by_user_id = $4,
-			updated_at = NOW()
-		WHERE id = $1;`
-
-	_, err = r.pool.Exec(ctx, updateQuery, chapterID, content, wordCount, userID)
-	if err != nil {
-		log.Printf("Error updating chapter content after saving revision for chapter ID %s: %v", chapterID, err)
-		return fmt.Errorf("failed to update chapter content after saving revision: %w", err)
-	}
-
-	return nil
-}
-
-// AutosaveContent temporarily saves chapter content without creating a formal revision.
-func (r *postgresChapterRepository) AutosaveContent(ctx context.Context, chapterID string, content string, userID string) error {
-	// We don't see chapter_autosaves in the schema, so we'll use a temporary approach
-	// that just updates the chapter without creating a revision
-
-	wordCount := countWords(content)
-
-	updateQuery := `
-		UPDATE chapters
-		SET content = $2,
-			word_count = $3,
-			last_edited_by_user_id = $4,
-			updated_at = NOW()
-		WHERE id = $1;`
-
-	_, err := r.pool.Exec(ctx, updateQuery, chapterID, content, wordCount, userID)
-	if err != nil {
-		log.Printf("Error autosaving chapter content for chapter ID %s: %v", chapterID, err)
-		return fmt.Errorf("failed to autosave chapter content: %w", err)
-	}
-
-	return nil
-}
-
 // Helper function to count words in a string
 func countWords(text string) int {
 	if text == "" {
@@ -269,7 +209,7 @@ func countWords(text string) int {
 
 	for _, r := range text {
 		isSpace := r == ' ' || r == '\n' || r == '\t' || r == '\r'
-		
+
 		if !isSpace && !inWord {
 			inWord = true
 			wordCount++

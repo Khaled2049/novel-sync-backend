@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log" // Consider using structured logging
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/khaled2049/server/internal/domain"
@@ -23,9 +24,7 @@ func NewNovelRepository(pool *pgxpool.Pool) repository.NovelRepository {
 	return &postgresNovelRepository{pool: pool}
 }
 
-
 // func gets all novels
-
 func (r *postgresNovelRepository) GetAll(ctx context.Context) ([]*domain.Novel, error) {
 	query := `
 		SELECT id, owner_user_id, title, logline, description, genre, visibility, cover_image_url, created_at, updated_at
@@ -84,7 +83,7 @@ func (r *postgresNovelRepository) Create(ctx context.Context, novel *domain.Nove
 }
 
 // FindByID retrieves a novel by its internal ID.
-func (r *postgresNovelRepository) GetByID(ctx context.Context, id string) (*domain.Novel, error) {
+func (r *postgresNovelRepository) GetByID(ctx context.Context, id uuid.UUID) (*domain.Novel, error) {
 	query := `
 		SELECT id, owner_user_id, title, logline, description, genre, visibility, cover_image_url, created_at, updated_at
 		FROM novels
@@ -304,43 +303,3 @@ func (r *postgresNovelRepository) RemoveCollaborator(ctx context.Context, novelI
 
 	return nil
 }
-
-// // FindNovelCollaborators retrieves all collaborators for a given novel.
-// func (r *postgresNovelRepository) FindNovelCollaborators(ctx context.Context, novelID string) ([]map[string]interface{}, error) {
-// 	query := `
-// 		SELECT u.id, u.name, u.email, u.profile_picture_url, nc.role
-// 		FROM novel_collaborators nc
-// 		JOIN users u ON nc.user_id = u.id
-// 		WHERE nc.novel_id = $1;`
-
-// 	var collaborators []map[string]interface{}
-// 	rows, err := r.pool.Query(ctx, query, novelID)
-// 	if err != nil {
-// 		log.Printf("Error finding collaborators for novel %s: %v", novelID, err) // Replace with structured logging
-// 		return nil, fmt.Errorf("failed to find novel collaborators: %w", err)
-// 	}
-// 	defer rows.Close()
-
-// 	for rows.Next() {
-// 		collaborator := make(map[string]interface{})
-// 		err := rows.Scan(
-// 			&collaborator["id"],
-// 			&collaborator["full_name"], // Assuming your users table has 'full_name'
-// 			&collaborator["email"],
-// 			&collaborator["profile_picture_url"],
-// 			&collaborator["role"],
-// 		)
-// 		if err != nil {
-// 			log.Printf("Error scanning collaborator row for novel %s: %v", novelID, err) // Replace with structured logging
-// 			return nil, fmt.Errorf("failed to scan collaborator: %w", err)
-// 		}
-// 		collaborators = append(collaborators, collaborator)
-// 	}
-
-// 	if err := rows.Err(); err != nil {
-// 		log.Printf("Error iterating over collaborator rows for novel %s: %v", novelID, err) // Replace with structured logging
-// 		return nil, fmt.Errorf("failed to iterate collaborator rows: %w", err)
-// 	}
-
-// 	return collaborators, nil
-// }
